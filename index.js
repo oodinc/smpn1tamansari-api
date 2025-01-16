@@ -1070,14 +1070,14 @@ app.delete("/api/strukturOrganisasi/:id", async (req, res) => {
 // Create new staff or teacher
 app.post("/api/staffandteachers", upload.single("image"), async (req, res) => {
   const { name, role } = req.body;
-  const image = req.file ? `/uploads/${req.file.filename}` : null;
+  const image = req.file ? await uploadToSupabase(req.file) : null;  // Upload to Supabase
 
   try {
     const newStaffAndTeacher = await prisma.staffAndTeacher.create({
       data: {
         name,
         role,
-        image,
+        image,  // Save the Supabase image URL
       },
     });
     res.status(201).json(newStaffAndTeacher);
@@ -1103,36 +1103,74 @@ app.get("/api/staffandteachers/:id", async (req, res) => {
 });
 
 // Update staff and teacher
-app.put(
-  "/api/staffandteachers/:id",
-  upload.single("image"),
-  async (req, res) => {
-    const { id } = req.params;
-    const { name, role } = req.body;
-    const image = req.file ? `/uploads/${req.file.filename}` : null;
+app.put("/api/staffandteachers/:id", upload.single("image"), async (req, res) => {
+  const { id } = req.params;
+  const { name, role } = req.body;
 
+  try {
+    // Get the existing staff/teacher data
+    const existingStaffAndTeacher = await prisma.staffAndTeacher.findUnique({
+      where: { id: parseInt(id) },
+    });
+
+    if (!existingStaffAndTeacher) {
+      return res.status(404).json({ error: "Staff or teacher not found" });
+    }
+
+    let newImage = existingStaffAndTeacher.image;
+
+    // If there's a new image, upload it and delete the old one
+    if (req.file) {
+      newImage = await uploadToSupabase(req.file);
+
+      // Delete the old image from Supabase
+      if (existingStaffAndTeacher.image) {
+        await deleteFromSupabase(existingStaffAndTeacher.image);
+      }
+    }
+
+    // Update the staff/teacher record
     const updatedStaffAndTeacher = await prisma.staffAndTeacher.update({
       where: { id: parseInt(id) },
       data: {
         name,
         role,
-        image: image || undefined,
+        image: newImage,  // Set the new image or keep the old one
       },
     });
 
     res.json(updatedStaffAndTeacher);
+  } catch (error) {
+    console.error("Error updating staff or teacher:", error);
+    res.status(500).json({ error: "Failed to update staff or teacher" });
   }
-);
+});
 
 // Delete staff or teacher
 app.delete("/api/staffandteachers/:id", async (req, res) => {
   const { id } = req.params;
 
   try {
+    // Get the existing staff/teacher data
+    const existingStaffAndTeacher = await prisma.staffAndTeacher.findUnique({
+      where: { id: parseInt(id) },
+    });
+
+    if (!existingStaffAndTeacher) {
+      return res.status(404).json({ error: "Staff or teacher not found" });
+    }
+
+    // Delete the image from Supabase if it exists
+    if (existingStaffAndTeacher.image) {
+      await deleteFromSupabase(existingStaffAndTeacher.image);
+    }
+
+    // Delete the staff/teacher record
     await prisma.staffAndTeacher.delete({
       where: { id: parseInt(id) },
     });
-    res.status(204).send(); // Respond with no content
+
+    res.status(204).send();  // Respond with no content
   } catch (error) {
     console.error("Error deleting staff or teacher:", error);
     res.status(500).json({ error: "Failed to delete staff or teacher" });
