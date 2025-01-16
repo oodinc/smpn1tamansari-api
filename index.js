@@ -1005,12 +1005,28 @@ app.put(
     const image = req.file ? `/uploads/${req.file.filename}` : null;
 
     try {
+      // Ambil data strukturOrganisasi yang lama
+      const existingPerson = await prisma.strukturOrganisasi.findUnique({
+        where: { id: parseInt(id) },
+      });
+
+      if (!existingPerson) {
+        return res.status(404).json({ error: "Person not found" });
+      }
+
+      // Jika ada file baru, hapus file lama terlebih dahulu
+      if (req.file && existingPerson.image) {
+        // Hapus file lama dari Supabase
+        await deleteFromSupabase(existingPerson.image);
+      }
+
+      // Update data strukturOrganisasi
       const updatedPerson = await prisma.strukturOrganisasi.update({
         where: { id: parseInt(id) },
         data: {
           role,
           name,
-          image: image || undefined,
+          image: image || existingPerson.image, // Gunakan gambar baru atau gambar lama
         },
       });
       res.json(updatedPerson);
@@ -1023,12 +1039,27 @@ app.put(
 
 app.delete("/api/strukturOrganisasi/:id", async (req, res) => {
   const { id } = req.params;
-  const parsedId = parseInt(id); // Ensure id is an integer
+  const parsedId = parseInt(id); // Pastikan id adalah integer
   if (isNaN(parsedId)) {
     return res.status(400).json({ error: "Invalid ID" });
   }
 
   try {
+    // Ambil data strukturOrganisasi yang lama
+    const existingPerson = await prisma.strukturOrganisasi.findUnique({
+      where: { id: parsedId },
+    });
+
+    if (!existingPerson) {
+      return res.status(404).json({ error: "Person not found" });
+    }
+
+    // Hapus file terkait dari Supabase jika ada
+    if (existingPerson.image) {
+      await deleteFromSupabase(existingPerson.image);
+    }
+
+    // Hapus data strukturOrganisasi dari database
     await prisma.strukturOrganisasi.delete({
       where: { id: parsedId },
     });
