@@ -796,25 +796,38 @@ app.get("/api/headmaster-message", async (req, res) => {
 });
 
 // Update Headmaster Message
-app.put(
-  "/api/headmaster-message/:id",
-  upload.single("image"),
+app.put("/api/headmaster-message/:id", upload.single("image"),
   async (req, res) => {
     const { id } = req.params;
     const { message, description, headmasterName } = req.body;
 
-    let image = null;
-    if (req.file) {
-      image = `/uploads/${req.file.filename}`;
-    }
-
     try {
+      // Ambil data Headmaster Message lama
+      const existingMessage = await prisma.headmasterMessage.findUnique({
+        where: { id: parseInt(id) },
+      });
+
+      if (!existingMessage) {
+        return res.status(404).json({ error: "Headmaster Message not found" });
+      }
+
+      // Jika ada gambar baru, upload dan hapus gambar lama dari Supabase
+      let newImage = null;
+      if (req.file) {
+        newImage = await uploadToSupabase(req.file);
+        // Hapus gambar lama dari Supabase jika ada
+        if (existingMessage.image) {
+          await deleteFromSupabase(existingMessage.image);
+        }
+      }
+
+      // Perbarui Headmaster Message
       const updatedHeadmasterMessage = await prisma.headmasterMessage.update({
         where: { id: parseInt(id) },
         data: {
           message,
           description,
-          image: image || undefined,
+          image: newImage || existingMessage.image, // Gunakan gambar baru jika ada
           headmasterName,
         },
       });
@@ -836,17 +849,41 @@ app.get("/api/sejarah", async (req, res) => {
 app.put("/api/sejarah/:id", upload.single("image"), async (req, res) => {
   const { id } = req.params;
   const { text } = req.body;
-  const image = req.file ? `/uploads/${req.file.filename}` : null;
 
-  const updatedSejarah = await prisma.sejarah.update({
-    where: { id: parseInt(id) },
-    data: {
-      text,
-      image: image || undefined,
-    },
-  });
+  try {
+    // Ambil data Sejarah lama
+    const existingSejarah = await prisma.sejarah.findUnique({
+      where: { id: parseInt(id) },
+    });
 
-  res.json(updatedSejarah);
+    if (!existingSejarah) {
+      return res.status(404).json({ error: "Sejarah not found" });
+    }
+
+    // Jika ada gambar baru, upload dan hapus gambar lama dari Supabase
+    let newImage = null;
+    if (req.file) {
+      newImage = await uploadToSupabase(req.file);
+      // Hapus gambar lama dari Supabase jika ada
+      if (existingSejarah.image) {
+        await deleteFromSupabase(existingSejarah.image);
+      }
+    }
+
+    // Perbarui Sejarah
+    const updatedSejarah = await prisma.sejarah.update({
+      where: { id: parseInt(id) },
+      data: {
+        text,
+        image: newImage || existingSejarah.image, // Gunakan gambar baru jika ada
+      },
+    });
+
+    res.json(updatedSejarah);
+  } catch (error) {
+    console.error("Error updating Sejarah:", error);
+    res.status(500).json({ error: "Failed to update Sejarah" });
+  }
 });
 
 // Get Visi Misi
