@@ -25,6 +25,11 @@ const upload = multer({ storage: storage });
 // Middleware to serve static files (images)
 app.use("/uploads", express.static("uploads"));
 
+// Endpoint untuk memastikan server berjalan
+app.get("/", (req, res) => {
+  res.send("Backend server is running");
+});
+
 // Get all news
 app.get("/api/news", async (req, res) => {
   const news = await prisma.news.findMany();
