@@ -693,7 +693,6 @@ app.get("/api/sarana/:id", async (req, res) => {
 });
 
 // Add sarana with image upload
-// Add sarana with image upload
 app.post("/api/sarana", upload.single("image"), async (req, res) => {
   const { name, description } = req.body;
 
@@ -734,8 +733,10 @@ app.put("/api/sarana/:id", upload.single("image"), async (req, res) => {
     // Jika ada file baru, upload dan hapus file lama dari Supabase
     let newImage = null;
     if (req.file) {
+      // Unggah file baru
       newImage = await uploadToSupabase(req.file);
 
+      // Hapus file lama jika ada
       if (existingSarana.image) {
         await deleteFromSupabase(existingSarana.image);
       }
@@ -747,7 +748,7 @@ app.put("/api/sarana/:id", upload.single("image"), async (req, res) => {
       data: {
         name,
         description,
-        image: newImage || existingSarana.image,
+        image: newImage || existingSarana.image, // Gunakan gambar baru atau gambar lama
       },
     });
     res.json(updatedSarana);
