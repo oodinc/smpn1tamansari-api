@@ -582,41 +582,99 @@ app.get("/api/galeri/:id", async (req, res) => {
 // Add galeri with image upload
 app.post("/api/galeri", upload.single("image"), async (req, res) => {
   const { title } = req.body;
-  const image = req.file ? `/uploads/${req.file.filename}` : null;
 
-  const newGaleri = await prisma.galeri.create({
-    data: {
-      title,
-      image,
-    },
-  });
-  res.json(newGaleri);
+  try {
+    const image = req.file ? await uploadToSupabase(req.file) : null;
+
+    const newGaleri = await prisma.galeri.create({
+      data: {
+        title,
+        image,
+      },
+    });
+    res.json(newGaleri);
+  } catch (error) {
+    console.error("Error creating galeri:", error);
+    res
+      .status(500)
+      .json({ error: "Failed to create galeri", details: error.message });
+  }
 });
 
 // Update galeri with image upload
 app.put("/api/galeri/:id", upload.single("image"), async (req, res) => {
   const { id } = req.params;
   const { title } = req.body;
-  const image = req.file ? `/uploads/${req.file.filename}` : null;
 
-  const updatedGaleri = await prisma.galeri.update({
-    where: { id: parseInt(id) },
-    data: {
-      title,
-      image: image || undefined,
-    },
-  });
+  try {
+    // Fetch existing galeri
+    const existingGaleri = await prisma.galeri.findUnique({
+      where: { id: parseInt(id) },
+    });
 
-  res.json(updatedGaleri);
+    if (!existingGaleri) {
+      return res.status(404).json({ error: "Galeri not found" });
+    }
+
+    // Handle new image upload and delete old file
+    let newImage = null;
+    if (req.file) {
+      newImage = await uploadToSupabase(req.file);
+
+      if (existingGaleri.image) {
+        await deleteFromSupabase(existingGaleri.image);
+      }
+    }
+
+    // Update galeri data
+    const updatedGaleri = await prisma.galeri.update({
+      where: { id: parseInt(id) },
+      data: {
+        title,
+        image: newImage || existingGaleri.image,
+      },
+    });
+
+    res.json(updatedGaleri);
+  } catch (error) {
+    console.error("Error updating galeri:", error);
+    res
+      .status(500)
+      .json({ error: "Failed to update galeri", details: error.message });
+  }
 });
 
 // Delete galeri by ID
 app.delete("/api/galeri/:id", async (req, res) => {
   const { id } = req.params;
-  await prisma.galeri.delete({
-    where: { id: parseInt(id) },
-  });
-  res.status(204).send();
+
+  try {
+    // Fetch existing galeri
+    const existingGaleri = await prisma.galeri.findUnique({
+      where: { id: parseInt(id) },
+    });
+
+    if (!existingGaleri) {
+      return res.status(404).json({ error: "Galeri not found" });
+    }
+
+    // Delete file from Supabase if exists
+    if (existingGaleri.image) {
+      await deleteFromSupabase(existingGaleri.image);
+    }
+
+    // Delete galeri record from database
+    await prisma.galeri.delete({
+      where: { id: parseInt(id) },
+    });
+
+    res.status(204).send();
+  } catch (error) {
+    console.error("Error deleting galeri:", error);
+    res
+      .status(500)
+      .json({ error: "Failed to delete galeri", details: error.message });
+  }
 });
 
 // Get all sarana
