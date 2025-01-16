@@ -693,45 +693,104 @@ app.get("/api/sarana/:id", async (req, res) => {
 });
 
 // Add sarana with image upload
+// Add sarana with image upload
 app.post("/api/sarana", upload.single("image"), async (req, res) => {
   const { name, description } = req.body;
-  const image = req.file ? `/uploads/${req.file.filename}` : null;
 
-  const newSarana = await prisma.sarana.create({
-    data: {
-      name,
-      description,
-      image,
-    },
-  });
-  res.json(newSarana);
+  try {
+    const image = req.file ? await uploadToSupabase(req.file) : null;
+
+    const newSarana = await prisma.sarana.create({
+      data: {
+        name,
+        description,
+        image,
+      },
+    });
+    res.json(newSarana);
+  } catch (error) {
+    console.error("Error creating sarana:", error);
+    res
+      .status(500)
+      .json({ error: "Failed to create sarana", details: error.message });
+  }
 });
 
 // Update sarana with image upload
 app.put("/api/sarana/:id", upload.single("image"), async (req, res) => {
   const { id } = req.params;
   const { name, description } = req.body;
-  const image = req.file ? `/uploads/${req.file.filename}` : null;
 
-  const updatedSarana = await prisma.sarana.update({
-    where: { id: parseInt(id) },
-    data: {
-      name,
-      description,
-      image: image || undefined,
-    },
-  });
+  try {
+    // Fetch existing sarana
+    const existingSarana = await prisma.sarana.findUnique({
+      where: { id: parseInt(id) },
+    });
 
-  res.json(updatedSarana);
+    if (!existingSarana) {
+      return res.status(404).json({ error: "Sarana not found" });
+    }
+
+    // Handle new image upload and delete old file
+    let newImage = null;
+    if (req.file) {
+      newImage = await uploadToSupabase(req.file);
+
+      if (existingSarana.image) {
+        await deleteFromSupabase(existingSarana.image);
+      }
+    }
+
+    // Update sarana data
+    const updatedSarana = await prisma.sarana.update({
+      where: { id: parseInt(id) },
+      data: {
+        name,
+        description,
+        image: newImage || existingSarana.image,
+      },
+    });
+
+    res.json(updatedSarana);
+  } catch (error) {
+    console.error("Error updating sarana:", error);
+    res
+      .status(500)
+      .json({ error: "Failed to update sarana", details: error.message });
+  }
 });
 
 // Delete sarana by ID
 app.delete("/api/sarana/:id", async (req, res) => {
   const { id } = req.params;
-  await prisma.sarana.delete({
-    where: { id: parseInt(id) },
-  });
-  res.status(204).send();
+
+  try {
+    // Fetch existing sarana
+    const existingSarana = await prisma.sarana.findUnique({
+      where: { id: parseInt(id) },
+    });
+
+    if (!existingSarana) {
+      return res.status(404).json({ error: "Sarana not found" });
+    }
+
+    // Delete file from Supabase if exists
+    if (existingSarana.image) {
+      await deleteFromSupabase(existingSarana.image);
+    }
+
+    // Delete sarana record from database
+    await prisma.sarana.delete({
+      where: { id: parseInt(id) },
+    });
+
+    res.status(204).send();
+  } catch (error) {
+    console.error("Error deleting sarana:", error);
+    res
+      .status(500)
+      .json({ error: "Failed to delete sarana", details: error.message });
+  }
 });
 
 // Get Headmaster Message
