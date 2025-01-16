@@ -469,47 +469,98 @@ app.get("/api/alumni/:id", async (req, res) => {
 // Add alumni with image upload
 app.post("/api/alumni", upload.single("image"), async (req, res) => {
   const { title, description } = req.body;
-  const image = req.file ? `/uploads/${req.file.filename}` : null;
 
-  const newAlumni = await prisma.alumni.create({
-    data: {
-      title,
-      description,
-      image,
-    },
-  });
-  res.json(newAlumni);
+  try {
+    const image = req.file ? await uploadToSupabase(req.file) : null;
+
+    const newAlumni = await prisma.alumni.create({
+      data: {
+        title,
+        description,
+        image,
+      },
+    });
+    res.json(newAlumni);
+  } catch (error) {
+    console.error("Error creating alumni:", error);
+    res
+      .status(500)
+      .json({ error: "Failed to create alumni", details: error.message });
+  }
 });
 
 // Update alumni with image upload
 app.put("/api/alumni/:id", upload.single("image"), async (req, res) => {
   const { id } = req.params;
   const { title, description } = req.body;
-  const image = req.file ? `/uploads/${req.file.filename}` : null;
 
-  const updatedAlumni = await prisma.alumni.update({
-    where: { id: parseInt(id) },
-    data: {
-      title,
-      description,
-      image: image || undefined,
-    },
-  });
+  try {
+    // Ambil data alumni lama
+    const existingAlumni = await prisma.alumni.findUnique({
+      where: { id: parseInt(id) },
+    });
 
-  res.json(updatedAlumni);
+    if (!existingAlumni) {
+      return res.status(404).json({ error: "Alumni not found" });
+    }
+
+    // Jika ada file baru, upload dan hapus file lama dari Supabase
+    let newImage = null;
+    if (req.file) {
+      newImage = await uploadToSupabase(req.file);
+
+      if (existingAlumni.image) {
+        await deleteFromSupabase(existingAlumni.image);
+      }
+    }
+
+    // Perbarui data alumni
+    const updatedAlumni = await prisma.alumni.update({
+      where: { id: parseInt(id) },
+      data: {
+        title,
+        description,
+        image: newImage || existingAlumni.image,
+      },
+    });
+    res.json(updatedAlumni);
+  } catch (error) {
+    console.error("Error updating alumni:", error);
+    res
+      .status(500)
+      .json({ error: "Failed to update alumni", details: error.message });
+  }
 });
 
 // Delete alumni by ID
 app.delete("/api/alumni/:id", async (req, res) => {
   const { id } = req.params;
+
   try {
+    // Ambil data alumni lama
+    const existingAlumni = await prisma.alumni.findUnique({
+      where: { id: parseInt(id) },
+    });
+
+    if (!existingAlumni) {
+      return res.status(404).json({ error: "Alumni not found" });
+    }
+
+    // Hapus file terkait dari Supabase jika ada
+    if (existingAlumni.image) {
+      await deleteFromSupabase(existingAlumni.image);
+    }
+
+    // Hapus data alumni dari database
     await prisma.alumni.delete({
       where: { id: parseInt(id) },
     });
     res.status(204).send();
   } catch (error) {
-    console.error("Failed to delete alumni:", error);
-    res.status(500).send("Error deleting alumni");
+    console.error("Error deleting alumni:", error);
+    res
+      .status(500)
+      .json({ error: "Failed to delete alumni", details: error.message });
   }
 });
 
