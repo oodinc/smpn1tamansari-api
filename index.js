@@ -48,6 +48,7 @@ const deleteFromSupabase = async (fileUrl) => {
     `${process.env.SUPABASE_URL}/storage/v1/object/public/${BUCKET_NAME}/`,
     ""
   );
+  console.log("File Path to be deleted:", filePath);
   const { error } = await supabase.storage.from(BUCKET_NAME).remove([filePath]);
 
   if (error) {
