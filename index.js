@@ -78,7 +78,7 @@ app.post("/api/news", upload.single("image"), async (req, res) => {
     res.json(newNews);
   } catch (error) {
     console.error("Error creating news:", error);
-    res.status(500).json({ error: "Failed to create news" });
+    res.status(500).json({ error: "Failed to create news", details: error.message });
   }
 });
 
