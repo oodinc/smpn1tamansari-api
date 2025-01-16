@@ -35,9 +35,11 @@ const uploadToSupabase = async (file) => {
     throw new Error("Failed to upload file to Supabase");
   }
 
-  // Get the public URL for the uploaded file
-  const { publicUrl } = supabase.storage.from(BUCKET_NAME).getPublicUrl(uniqueFilename);
-  return publicUrl;
+  // Dapatkan URL publik
+  return supabase.storage
+    .from(BUCKET_NAME)
+    .getPublicUrl(uniqueFilename)
+    .data.publicUrl;
 };
 
 // Endpoint untuk memastikan server berjalan
