@@ -274,21 +274,43 @@ app.put("/api/hero/:id", upload.single("image"), async (req, res) => {
   const { id } = req.params;
   const { welcomeMessage, description } = req.body;
 
-  let image = null;
-  if (req.file) {
-    image = `/uploads/${req.file.filename}`;
+  try {
+    // Ambil data hero lama
+    const existingHero = await prisma.hero.findUnique({
+      where: { id: parseInt(id) },
+    });
+
+    if (!existingHero) {
+      return res.status(404).json({ error: "Hero not found" });
+    }
+
+    // Jika ada file baru, upload dan hapus file lama dari Supabase
+    let newImage = null;
+    if (req.file) {
+      newImage = await uploadToSupabase(req.file);
+
+      if (existingHero.image) {
+        await deleteFromSupabase(existingHero.image);
+      }
+    }
+
+    // Perbarui data hero
+    const updatedHero = await prisma.hero.update({
+      where: { id: parseInt(id) },
+      data: {
+        welcomeMessage,
+        description,
+        image: newImage || existingHero.image,
+      },
+    });
+
+    res.json(updatedHero);
+  } catch (error) {
+    console.error("Error updating hero:", error);
+    res
+      .status(500)
+      .json({ error: "Failed to update hero", details: error.message });
   }
-
-  const updatedHero = await prisma.hero.update({
-    where: { id: parseInt(id) },
-    data: {
-      welcomeMessage,
-      description,
-      image: image || undefined,
-    },
-  });
-
-  res.json(updatedHero);
 });
 
 // Get all extracurriculars
