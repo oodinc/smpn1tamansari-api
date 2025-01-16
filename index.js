@@ -3,6 +3,16 @@ import cors from "cors";
 import { PrismaClient } from "@prisma/client";
 import multer from "multer";
 import path from "path";
+import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
+
+// Load environment variables from .env file
+dotenv.config();
+
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
+
+export const supabase = createClient(supabaseUrl, supabaseKey);
 
 const prisma = new PrismaClient();
 
@@ -48,16 +58,34 @@ app.get("/api/news/:id", async (req, res) => {
 // Add news with image upload
 app.post("/api/news", upload.single("image"), async (req, res) => {
   const { title, description, publishedAt } = req.body;
-  const image = req.file ? `/uploads/${req.file.filename}` : null;
+  let imageUrl = null;
+
+  if (req.file) {
+    // Upload image to Supabase Storage
+    const fileBuffer = req.file.buffer; // Mendapatkan buffer dari file
+    const fileName = `${Date.now()}-${req.file.originalname}`; // Nama file unik
+
+    const { data, error } = await supabase.storage
+      .from("uploads")
+      .upload(fileName, fileBuffer, { upsert: true }); // Upload file ke bucket "uploads"
+
+    if (error) {
+      return res.status(500).json({ error: "Failed to upload image to Supabase" });
+    }
+
+    // Mendapatkan URL file setelah diupload
+    imageUrl = `https://dscxlkwvcujsvoszkaca.supabase.co/storage/v1/object/public/uploads/${fileName}`;
+  }
 
   const newNews = await prisma.news.create({
     data: {
       title,
       description,
-      image,
+      image: imageUrl, // Menyimpan URL gambar di database
       publishedAt: new Date(publishedAt),
     },
   });
+
   res.json(newNews);
 });
 
