@@ -331,47 +331,101 @@ app.get("/api/extracurriculars/:id", async (req, res) => {
 // Add extracurricular with image upload
 app.post("/api/extracurriculars", upload.single("image"), async (req, res) => {
   const { name, description } = req.body;
-  const image = req.file ? `/uploads/${req.file.filename}` : null;
 
-  const newExtracurricular = await prisma.extracurricular.create({
-    data: {
-      name,
-      description,
-      image,
-    },
-  });
-  res.json(newExtracurricular);
+  try {
+    const image = req.file ? await uploadToSupabase(req.file) : null;
+
+    const newExtracurricular = await prisma.extracurricular.create({
+      data: {
+        name,
+        description,
+        image,
+      },
+    });
+    res.json(newExtracurricular);
+  } catch (error) {
+    console.error("Error creating extracurricular:", error);
+    res
+      .status(500)
+      .json({ error: "Failed to create extracurricular", details: error.message });
+  }
 });
 
 // Update extracurricular with image upload
-app.put(
-  "/api/extracurriculars/:id",
-  upload.single("image"),
-  async (req, res) => {
-    const { id } = req.params;
-    const { name, description } = req.body;
-    const image = req.file ? `/uploads/${req.file.filename}` : null;
+app.put("/api/extracurriculars/:id", upload.single("image"), async (req, res) => {
+  const { id } = req.params;
+  const { name, description } = req.body;
 
+  try {
+    // Ambil data lama
+    const existingExtracurricular = await prisma.extracurricular.findUnique({
+      where: { id: parseInt(id) },
+    });
+
+    if (!existingExtracurricular) {
+      return res.status(404).json({ error: "Extracurricular not found" });
+    }
+
+    // Jika ada file baru, upload dan hapus file lama
+    let newImage = null;
+    if (req.file) {
+      newImage = await uploadToSupabase(req.file);
+
+      if (existingExtracurricular.image) {
+        await deleteFromSupabase(existingExtracurricular.image);
+      }
+    }
+
+    // Perbarui data
     const updatedExtracurricular = await prisma.extracurricular.update({
       where: { id: parseInt(id) },
       data: {
         name,
         description,
-        image: image || undefined,
+        image: newImage || existingExtracurricular.image,
       },
     });
 
     res.json(updatedExtracurricular);
+  } catch (error) {
+    console.error("Error updating extracurricular:", error);
+    res
+      .status(500)
+      .json({ error: "Failed to update extracurricular", details: error.message });
   }
-);
+});
 
 // Delete extracurricular by ID
 app.delete("/api/extracurriculars/:id", async (req, res) => {
   const { id } = req.params;
-  await prisma.extracurricular.delete({
-    where: { id: parseInt(id) },
-  });
-  res.status(204).send();
+
+  try {
+    // Ambil data lama
+    const existingExtracurricular = await prisma.extracurricular.findUnique({
+      where: { id: parseInt(id) },
+    });
+
+    if (!existingExtracurricular) {
+      return res.status(404).json({ error: "Extracurricular not found" });
+    }
+
+    // Hapus file terkait dari Supabase jika ada
+    if (existingExtracurricular.image) {
+      await deleteFromSupabase(existingExtracurricular.image);
+    }
+
+    // Hapus data dari database
+    await prisma.extracurricular.delete({
+      where: { id: parseInt(id) },
+    });
+
+    res.status(204).send();
+  } catch (error) {
+    console.error("Error deleting extracurricular:", error);
+    res
+      .status(500)
+      .json({ error: "Failed to delete extracurricular", details: error.message });
+  }
 });
 
 // Get Kalender
