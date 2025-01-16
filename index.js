@@ -963,6 +963,7 @@ app.put("/api/schoolinfo/:id", async (req, res) => {
   res.json(updatedSchoolInfo);
 });
 
+// Endpoint untuk mendapatkan strukturOrganisasi
 app.get("/api/strukturOrganisasi", async (req, res) => {
   try {
     const strukturOrganisasi = await prisma.strukturOrganisasi.findMany();
@@ -973,103 +974,95 @@ app.get("/api/strukturOrganisasi", async (req, res) => {
   }
 });
 
-app.post(
-  "/api/strukturOrganisasi",
-  upload.single("image"),
-  async (req, res) => {
-    const { role, name } = req.body;
-    const image = req.file ? `/uploads/${req.file.filename}` : null;
+// Add Struktur Organisasi with image upload
+app.post("/api/strukturOrganisasi", upload.single("image"), async (req, res) => {
+  const { role, name } = req.body;
+  const image = req.file ? await uploadToSupabase(req.file) : null;
 
-    try {
-      const newPerson = await prisma.strukturOrganisasi.create({
-        data: {
-          role,
-          name,
-          image,
-        },
-      });
-      res.json(newPerson);
-    } catch (error) {
-      console.error("Failed to create struktur organisasi:", error);
-      res.status(500).json({ error: "Failed to create struktur organisasi" });
-    }
+  try {
+    const newPerson = await prisma.strukturOrganisasi.create({
+      data: {
+        role,
+        name,
+        image,
+      },
+    });
+    res.json(newPerson);
+  } catch (error) {
+    console.error("Failed to create struktur organisasi:", error);
+    res.status(500).json({ error: "Failed to create struktur organisasi" });
   }
-);
+});
 
-app.put(
-  "/api/strukturOrganisasi/:id",
-  upload.single("image"),
-  async (req, res) => {
-    const { id } = req.params;
-    const { role, name } = req.body;
-    const image = req.file ? `/uploads/${req.file.filename}` : null;
+// Update Struktur Organisasi with image upload
+app.put("/api/strukturOrganisasi/:id", upload.single("image"), async (req, res) => {
+  const { id } = req.params;
+  const { role, name } = req.body;
+  let newImage = null;
 
-    try {
-      // Ambil data strukturOrganisasi yang lama
-      const existingPerson = await prisma.strukturOrganisasi.findUnique({
-        where: { id: parseInt(id) },
-      });
+  try {
+    const existingPerson = await prisma.strukturOrganisasi.findUnique({
+      where: { id: parseInt(id) },
+    });
 
-      if (!existingPerson) {
-        return res.status(404).json({ error: "Person not found" });
-      }
+    if (!existingPerson) {
+      return res.status(404).json({ error: "Struktur Organisasi not found" });
+    }
 
-      // Jika ada file baru, hapus file lama terlebih dahulu
-      if (req.file && existingPerson.image) {
-        // Hapus file lama dari Supabase
+    // If a new file is uploaded, delete the old one
+    if (req.file) {
+      newImage = await uploadToSupabase(req.file);
+
+      if (existingPerson.image) {
         await deleteFromSupabase(existingPerson.image);
       }
-
-      // Update data strukturOrganisasi
-      const updatedPerson = await prisma.strukturOrganisasi.update({
-        where: { id: parseInt(id) },
-        data: {
-          role,
-          name,
-          image: image || existingPerson.image, // Gunakan gambar baru atau gambar lama
-        },
-      });
-      res.json(updatedPerson);
-    } catch (error) {
-      console.error("Failed to update struktur organisasi:", error);
-      res.status(500).json({ error: "Failed to update struktur organisasi" });
     }
-  }
-);
 
+    const updatedPerson = await prisma.strukturOrganisasi.update({
+      where: { id: parseInt(id) },
+      data: {
+        role,
+        name,
+        image: newImage || existingPerson.image, // Use new image or keep old one
+      },
+    });
+    res.json(updatedPerson);
+  } catch (error) {
+    console.error("Failed to update struktur organisasi:", error);
+    res.status(500).json({ error: "Failed to update struktur organisasi" });
+  }
+});
+
+// Delete Struktur Organisasi and its image from Supabase
 app.delete("/api/strukturOrganisasi/:id", async (req, res) => {
   const { id } = req.params;
-  const parsedId = parseInt(id); // Pastikan id adalah integer
+  const parsedId = parseInt(id); // Ensure id is an integer
   if (isNaN(parsedId)) {
     return res.status(400).json({ error: "Invalid ID" });
   }
 
   try {
-    // Ambil data strukturOrganisasi yang lama
     const existingPerson = await prisma.strukturOrganisasi.findUnique({
       where: { id: parsedId },
     });
 
     if (!existingPerson) {
-      return res.status(404).json({ error: "Person not found" });
+      return res.status(404).json({ error: "Struktur Organisasi not found" });
     }
 
-    // Hapus file terkait dari Supabase jika ada
+    // Delete the file associated with the person from Supabase if exists
     if (existingPerson.image) {
       await deleteFromSupabase(existingPerson.image);
     }
 
-    // Hapus data strukturOrganisasi dari database
+    // Delete the structure from the database
     await prisma.strukturOrganisasi.delete({
       where: { id: parsedId },
     });
-    res.status(204).send();
+
+    res.status(204).send(); // Successfully deleted
   } catch (error) {
-    console.error(
-      "Failed to delete struktur organisasi with id:",
-      parsedId,
-      error
-    );
+    console.error("Failed to delete struktur organisasi with id:", parsedId, error);
     res.status(500).send("Error deleting struktur organisasi");
   }
 });
