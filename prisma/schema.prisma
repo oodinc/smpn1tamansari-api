@@ -1,0 +1,126 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Hero {
+  id              Int     @id @default(autoincrement())
+  welcomeMessage  String
+  description     String
+  image           String
+}
+
+model News {
+  id        Int      @id @default(autoincrement())
+  title     String
+  description String
+  image     String?
+  publishedAt DateTime
+}
+
+model Announcement {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String
+  publishedDate DateTime
+}
+
+model Extracurricular {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String
+  image       String?
+}
+
+model Kalender {
+  id    Int    @id @default(autoincrement())
+  title String
+  file  String
+}
+
+model Alumni {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String
+  image       String?
+}
+
+model Galeri {
+  id          Int      @id @default(autoincrement())
+  title       String
+  image       String
+}
+
+model Sarana {
+  id          Int      @id @default(autoincrement())
+  name        String
+  image       String?
+}
+
+model HeadmasterMessage {
+  id          Int     @id @default(autoincrement())
+  message     String
+  description String
+  image       String
+  headmasterName String
+}
+
+model Sejarah {
+  id      Int     @id @default(autoincrement())
+  text    String
+  image   String?
+}
+
+model VisiMisi {
+  id      Int    @id @default(autoincrement())
+  visi    String
+  misi    String[]
+}
+
+model SchoolInfo {
+  id              Int     @id @default(autoincrement())
+  akreditasi      String
+  jumlahGuru      Int
+  tenagaPendidikan Int
+  jumlahSiswa     Int
+  namaSekolah     String
+  nspn            String
+  jenjangPendidikan String
+  statusSekolah   String
+  alamat          String
+  rtRw            String
+  kodePos         String
+  kecamatan       String
+  kabKota         String
+  provinsi        String
+  negara          String
+  posisiGeografis String
+}
+
+model StrukturOrganisasi {
+  id    Int    @id @default(autoincrement())
+  role  String
+  name  String
+  image String
+}
+
+model StaffAndTeacher {
+  id    Int    @id @default(autoincrement())
+  name  String
+  role  String
+  image String
+}
+
+model Contact {
+  id      Int    @id @default(autoincrement())
+  name    String
+  email   String
+  phone   String
+  message String
+  createdAt DateTime @default(now())
+}

@@ -1,0 +1,795 @@
+import express from "express";
+import cors from "cors";
+import { PrismaClient } from "@prisma/client";
+import multer from "multer";
+import path from "path";
+
+const prisma = new PrismaClient();
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// Set up multer for file uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, "uploads/"); // Directory to store uploaded images
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + path.extname(file.originalname)); // Use unique filename
+  },
+});
+
+const upload = multer({ storage: storage });
+
+// Middleware to serve static files (images)
+app.use("/uploads", express.static("uploads"));
+
+// Get all news
+app.get("/api/news", async (req, res) => {
+  const news = await prisma.news.findMany();
+  res.json(news);
+});
+
+// Get news by ID
+app.get("/api/news/:id", async (req, res) => {
+  const { id } = req.params;
+  const newsItem = await prisma.news.findUnique({
+    where: { id: parseInt(id) },
+  });
+  res.json(newsItem);
+});
+
+// Add news with image upload
+app.post("/api/news", upload.single("image"), async (req, res) => {
+  const { title, description, publishedAt } = req.body;
+  const image = req.file ? `/uploads/${req.file.filename}` : null;
+
+  const newNews = await prisma.news.create({
+    data: {
+      title,
+      description,
+      image,
+      publishedAt: new Date(publishedAt),
+    },
+  });
+  res.json(newNews);
+});
+
+// Update news with image upload
+app.put("/api/news/:id", upload.single("image"), async (req, res) => {
+  const { id } = req.params;
+  const { title, description, publishedAt } = req.body;
+  const image = req.file ? `/uploads/${req.file.filename}` : null;
+
+  const updatedNews = await prisma.news.update({
+    where: { id: parseInt(id) },
+    data: {
+      title,
+      description,
+      image: image || undefined,
+      publishedAt: new Date(publishedAt),
+    },
+  });
+
+  res.json(updatedNews);
+});
+
+// Delete news by ID
+app.delete("/api/news/:id", async (req, res) => {
+  const { id } = req.params;
+  await prisma.news.delete({
+    where: { id: parseInt(id) },
+  });
+  res.status(204).send();
+});
+
+app.post("/api/announcements", async (req, res) => {
+  const { title, description, publishedDate } = req.body;
+
+  // Validate date format
+  if (
+    !title ||
+    !description ||
+    !publishedDate ||
+    isNaN(new Date(publishedDate).getTime())
+  ) {
+    return res.status(400).json({ error: "Invalid or missing fields" });
+  }
+
+  try {
+    const newAnnouncement = await prisma.announcement.create({
+      data: {
+        title,
+        description,
+        publishedDate: new Date(publishedDate),
+      },
+    });
+    res.json(newAnnouncement);
+  } catch (error) {
+    console.error("Failed to create announcement:", error);
+    res.status(500).send("Error creating announcement");
+  }
+});
+
+// Update announcement by ID
+app.put("/api/announcements/:id", async (req, res) => {
+  const { id } = req.params;
+  const { title, description, publishedDate } = req.body;
+
+  if (!title || !description || !publishedDate) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+
+  let parsedDate = null;
+  if (publishedDate && !isNaN(new Date(publishedDate).getTime())) {
+    parsedDate = new Date(publishedDate);
+  }
+
+  try {
+    const updatedAnnouncement = await prisma.announcement.update({
+      where: { id: parseInt(id) },
+      data: {
+        title,
+        description,
+        publishedDate: parsedDate,
+      },
+    });
+    res.json(updatedAnnouncement);
+  } catch (error) {
+    console.error("Failed to update announcement:", error);
+    res.status(500).json({ error: "Error updating announcement" });
+  }
+});
+
+// Get all announcements
+app.get("/api/announcements", async (req, res) => {
+  const announcements = await prisma.announcement.findMany();
+  res.json(announcements);
+});
+
+// Get announcement by ID
+app.get("/api/announcements/:id", async (req, res) => {
+  const { id } = req.params;
+  const announcement = await prisma.announcement.findUnique({
+    where: { id: parseInt(id) },
+  });
+  res.json(announcement);
+});
+
+// Delete announcement by ID
+app.delete("/api/announcements/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    await prisma.announcement.delete({
+      where: { id: parseInt(id) },
+    });
+    res.status(204).send();
+  } catch (error) {
+    console.error("Failed to delete announcement:", error);
+    res.status(500).send("Error deleting announcement");
+  }
+});
+
+// Get Hero
+app.get("/api/hero", async (req, res) => {
+  const hero = await prisma.hero.findFirst();
+  res.json(hero);
+});
+
+// Update Hero
+app.put("/api/hero/:id", upload.single("image"), async (req, res) => {
+  const { id } = req.params;
+  const { welcomeMessage, description } = req.body;
+
+  let image = null;
+  if (req.file) {
+    image = `/uploads/${req.file.filename}`;
+  }
+
+  const updatedHero = await prisma.hero.update({
+    where: { id: parseInt(id) },
+    data: {
+      welcomeMessage,
+      description,
+      image: image || undefined,
+    },
+  });
+
+  res.json(updatedHero);
+});
+
+// Get all extracurriculars
+app.get("/api/extracurriculars", async (req, res) => {
+  const extracurriculars = await prisma.extracurricular.findMany();
+  res.json(extracurriculars);
+});
+
+// Get extracurricular by ID
+app.get("/api/extracurriculars/:id", async (req, res) => {
+  const { id } = req.params;
+  const extracurricular = await prisma.extracurricular.findUnique({
+    where: { id: parseInt(id) },
+  });
+  res.json(extracurricular);
+});
+
+// Add extracurricular with image upload
+app.post("/api/extracurriculars", upload.single("image"), async (req, res) => {
+  const { name, description } = req.body;
+  const image = req.file ? `/uploads/${req.file.filename}` : null;
+
+  const newExtracurricular = await prisma.extracurricular.create({
+    data: {
+      name,
+      description,
+      image,
+    },
+  });
+  res.json(newExtracurricular);
+});
+
+// Update extracurricular with image upload
+app.put(
+  "/api/extracurriculars/:id",
+  upload.single("image"),
+  async (req, res) => {
+    const { id } = req.params;
+    const { name, description } = req.body;
+    const image = req.file ? `/uploads/${req.file.filename}` : null;
+
+    const updatedExtracurricular = await prisma.extracurricular.update({
+      where: { id: parseInt(id) },
+      data: {
+        name,
+        description,
+        image: image || undefined,
+      },
+    });
+
+    res.json(updatedExtracurricular);
+  }
+);
+
+// Delete extracurricular by ID
+app.delete("/api/extracurriculars/:id", async (req, res) => {
+  const { id } = req.params;
+  await prisma.extracurricular.delete({
+    where: { id: parseInt(id) },
+  });
+  res.status(204).send();
+});
+
+// Get Kalender
+app.get("/api/kalender", async (req, res) => {
+  const kalender = await prisma.kalender.findMany();
+  res.json(kalender);
+});
+
+// Update Kalender
+app.put("/api/kalender/:id", upload.single("file"), async (req, res) => {
+  const { id } = req.params;
+  const { title } = req.body;
+  const file = req.file ? `/uploads/${req.file.filename}` : null;
+
+  const updatedKalender = await prisma.kalender.update({
+    where: { id: parseInt(id) },
+    data: {
+      title,
+      file: file || undefined,
+    },
+  });
+
+  res.json(updatedKalender);
+});
+
+// Get all alumni
+app.get("/api/alumni", async (req, res) => {
+  const alumni = await prisma.alumni.findMany();
+  res.json(alumni);
+});
+
+// Get alumni by ID
+app.get("/api/alumni/:id", async (req, res) => {
+  const { id } = req.params;
+  const alumniItem = await prisma.alumni.findUnique({
+    where: { id: parseInt(id) },
+  });
+  res.json(alumniItem);
+});
+
+// Add alumni with image upload
+app.post("/api/alumni", upload.single("image"), async (req, res) => {
+  const { title, description } = req.body;
+  const image = req.file ? `/uploads/${req.file.filename}` : null;
+
+  const newAlumni = await prisma.alumni.create({
+    data: {
+      title,
+      description,
+      image,
+    },
+  });
+  res.json(newAlumni);
+});
+
+// Update alumni with image upload
+app.put("/api/alumni/:id", upload.single("image"), async (req, res) => {
+  const { id } = req.params;
+  const { title, description } = req.body;
+  const image = req.file ? `/uploads/${req.file.filename}` : null;
+
+  const updatedAlumni = await prisma.alumni.update({
+    where: { id: parseInt(id) },
+    data: {
+      title,
+      description,
+      image: image || undefined,
+    },
+  });
+
+  res.json(updatedAlumni);
+});
+
+// Delete alumni by ID
+app.delete("/api/alumni/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    await prisma.alumni.delete({
+      where: { id: parseInt(id) },
+    });
+    res.status(204).send();
+  } catch (error) {
+    console.error("Failed to delete alumni:", error);
+    res.status(500).send("Error deleting alumni");
+  }
+});
+
+// Get all galeri
+app.get("/api/galeri", async (req, res) => {
+  const galeri = await prisma.galeri.findMany();
+  res.json(galeri);
+});
+
+// Get galeri by ID
+app.get("/api/galeri/:id", async (req, res) => {
+  const { id } = req.params;
+  const galeriItem = await prisma.galeri.findUnique({
+    where: { id: parseInt(id) },
+  });
+  res.json(galeriItem);
+});
+
+// Add galeri with image upload
+app.post("/api/galeri", upload.single("image"), async (req, res) => {
+  const { title } = req.body;
+  const image = req.file ? `/uploads/${req.file.filename}` : null;
+
+  const newGaleri = await prisma.galeri.create({
+    data: {
+      title,
+      image,
+    },
+  });
+  res.json(newGaleri);
+});
+
+// Update galeri with image upload
+app.put("/api/galeri/:id", upload.single("image"), async (req, res) => {
+  const { id } = req.params;
+  const { title } = req.body;
+  const image = req.file ? `/uploads/${req.file.filename}` : null;
+
+  const updatedGaleri = await prisma.galeri.update({
+    where: { id: parseInt(id) },
+    data: {
+      title,
+      image: image || undefined,
+    },
+  });
+
+  res.json(updatedGaleri);
+});
+
+// Delete galeri by ID
+app.delete("/api/galeri/:id", async (req, res) => {
+  const { id } = req.params;
+  await prisma.galeri.delete({
+    where: { id: parseInt(id) },
+  });
+  res.status(204).send();
+});
+
+// Get all sarana
+app.get("/api/sarana", async (req, res) => {
+  const sarana = await prisma.sarana.findMany();
+  res.json(sarana);
+});
+
+// Get sarana by ID
+app.get("/api/sarana/:id", async (req, res) => {
+  const { id } = req.params;
+  const saranaItem = await prisma.sarana.findUnique({
+    where: { id: parseInt(id) },
+  });
+  res.json(saranaItem);
+});
+
+// Add sarana with image upload
+app.post("/api/sarana", upload.single("image"), async (req, res) => {
+  const { name, description } = req.body;
+  const image = req.file ? `/uploads/${req.file.filename}` : null;
+
+  const newSarana = await prisma.sarana.create({
+    data: {
+      name,
+      description,
+      image,
+    },
+  });
+  res.json(newSarana);
+});
+
+// Update sarana with image upload
+app.put("/api/sarana/:id", upload.single("image"), async (req, res) => {
+  const { id } = req.params;
+  const { name, description } = req.body;
+  const image = req.file ? `/uploads/${req.file.filename}` : null;
+
+  const updatedSarana = await prisma.sarana.update({
+    where: { id: parseInt(id) },
+    data: {
+      name,
+      description,
+      image: image || undefined,
+    },
+  });
+
+  res.json(updatedSarana);
+});
+
+// Delete sarana by ID
+app.delete("/api/sarana/:id", async (req, res) => {
+  const { id } = req.params;
+  await prisma.sarana.delete({
+    where: { id: parseInt(id) },
+  });
+  res.status(204).send();
+});
+
+// Get Headmaster Message
+app.get("/api/headmaster-message", async (req, res) => {
+  const headmasterMessage = await prisma.headmasterMessage.findFirst();
+  res.json(headmasterMessage);
+});
+
+// Update Headmaster Message
+app.put(
+  "/api/headmaster-message/:id",
+  upload.single("image"),
+  async (req, res) => {
+    const { id } = req.params;
+    const { message, description, headmasterName } = req.body;
+
+    let image = null;
+    if (req.file) {
+      image = `/uploads/${req.file.filename}`;
+    }
+
+    try {
+      const updatedHeadmasterMessage = await prisma.headmasterMessage.update({
+        where: { id: parseInt(id) },
+        data: {
+          message,
+          description,
+          image: image || undefined,
+          headmasterName,
+        },
+      });
+      res.json(updatedHeadmasterMessage);
+    } catch (error) {
+      console.error("Error updating headmaster message:", error);
+      res.status(500).json({ error: "Failed to update headmaster message" });
+    }
+  }
+);
+
+// Get Sejarah
+app.get("/api/sejarah", async (req, res) => {
+  const sejarah = await prisma.sejarah.findFirst();
+  res.json(sejarah);
+});
+
+// Update Sejarah
+app.put("/api/sejarah/:id", upload.single("image"), async (req, res) => {
+  const { id } = req.params;
+  const { text } = req.body;
+  const image = req.file ? `/uploads/${req.file.filename}` : null;
+
+  const updatedSejarah = await prisma.sejarah.update({
+    where: { id: parseInt(id) },
+    data: {
+      text,
+      image: image || undefined,
+    },
+  });
+
+  res.json(updatedSejarah);
+});
+
+// Get Visi Misi
+app.get("/api/visi-misi", async (req, res) => {
+  const visiMisi = await prisma.visiMisi.findFirst();
+  res.json(visiMisi);
+});
+
+// Update Visi Misi
+app.put("/api/visi-misi/:id", async (req, res) => {
+  const { id } = req.params;
+  const { visi, misi } = req.body;
+
+  const updatedVisiMisi = await prisma.visiMisi.update({
+    where: { id: parseInt(id) },
+    data: {
+      visi,
+      misi,
+    },
+  });
+
+  res.json(updatedVisiMisi);
+});
+
+app.get("/api/schoolinfo", async (req, res) => {
+  const schoolInfo = await prisma.schoolInfo.findFirst();
+  if (!schoolInfo) {
+    return res.status(404).json({ message: "School information not found" });
+  }
+  res.json(schoolInfo);
+});
+
+// Update SchoolInfo
+app.put("/api/schoolinfo/:id", async (req, res) => {
+  const { id } = req.params;
+  const {
+    akreditasi,
+    jumlahGuru,
+    tenagaPendidikan,
+    jumlahSiswa,
+    namaSekolah,
+    nspn,
+    jenjangPendidikan,
+    statusSekolah,
+    alamat,
+    rtRw,
+    kodePos,
+    kecamatan,
+    kabKota,
+    provinsi,
+    negara,
+    posisiGeografis,
+  } = req.body;
+
+  const updatedSchoolInfo = await prisma.schoolInfo.update({
+    where: { id: parseInt(id) },
+    data: {
+      akreditasi,
+      jumlahGuru,
+      tenagaPendidikan,
+      jumlahSiswa,
+      namaSekolah,
+      nspn,
+      jenjangPendidikan,
+      statusSekolah,
+      alamat,
+      rtRw,
+      kodePos,
+      kecamatan,
+      kabKota,
+      provinsi,
+      negara,
+      posisiGeografis,
+    },
+  });
+
+  res.json(updatedSchoolInfo);
+});
+
+app.get("/api/strukturOrganisasi", async (req, res) => {
+  try {
+    const strukturOrganisasi = await prisma.strukturOrganisasi.findMany();
+    res.json(strukturOrganisasi);
+  } catch (error) {
+    console.error("Failed to fetch struktur organisasi:", error);
+    res.status(500).json({ error: "Failed to fetch struktur organisasi" });
+  }
+});
+
+app.post(
+  "/api/strukturOrganisasi",
+  upload.single("image"),
+  async (req, res) => {
+    const { role, name } = req.body;
+    const image = req.file ? `/uploads/${req.file.filename}` : null;
+
+    try {
+      const newPerson = await prisma.strukturOrganisasi.create({
+        data: {
+          role,
+          name,
+          image,
+        },
+      });
+      res.json(newPerson);
+    } catch (error) {
+      console.error("Failed to create struktur organisasi:", error);
+      res.status(500).json({ error: "Failed to create struktur organisasi" });
+    }
+  }
+);
+
+app.put(
+  "/api/strukturOrganisasi/:id",
+  upload.single("image"),
+  async (req, res) => {
+    const { id } = req.params;
+    const { role, name } = req.body;
+    const image = req.file ? `/uploads/${req.file.filename}` : null;
+
+    try {
+      const updatedPerson = await prisma.strukturOrganisasi.update({
+        where: { id: parseInt(id) },
+        data: {
+          role,
+          name,
+          image: image || undefined,
+        },
+      });
+      res.json(updatedPerson);
+    } catch (error) {
+      console.error("Failed to update struktur organisasi:", error);
+      res.status(500).json({ error: "Failed to update struktur organisasi" });
+    }
+  }
+);
+
+app.delete("/api/strukturOrganisasi/:id", async (req, res) => {
+  const { id } = req.params;
+  const parsedId = parseInt(id); // Ensure id is an integer
+  if (isNaN(parsedId)) {
+    return res.status(400).json({ error: "Invalid ID" });
+  }
+
+  try {
+    await prisma.strukturOrganisasi.delete({
+      where: { id: parsedId },
+    });
+    res.status(204).send();
+  } catch (error) {
+    console.error(
+      "Failed to delete struktur organisasi with id:",
+      parsedId,
+      error
+    );
+    res.status(500).send("Error deleting struktur organisasi");
+  }
+});
+
+// Create new staff or teacher
+app.post("/api/staffandteachers", upload.single("image"), async (req, res) => {
+  const { name, role } = req.body;
+  const image = req.file ? `/uploads/${req.file.filename}` : null;
+
+  try {
+    const newStaffAndTeacher = await prisma.staffAndTeacher.create({
+      data: {
+        name,
+        role,
+        image,
+      },
+    });
+    res.status(201).json(newStaffAndTeacher);
+  } catch (error) {
+    console.error("Error creating staff or teacher:", error);
+    res.status(500).json({ error: "Failed to create staff or teacher" });
+  }
+});
+
+// Get all staff and teachers
+app.get("/api/staffandteachers", async (req, res) => {
+  const staffAndTeachers = await prisma.staffAndTeacher.findMany();
+  res.json(staffAndTeachers);
+});
+
+// Get staff and teacher by ID
+app.get("/api/staffandteachers/:id", async (req, res) => {
+  const { id } = req.params;
+  const staffAndTeacher = await prisma.staffAndTeacher.findUnique({
+    where: { id: parseInt(id) },
+  });
+  res.json(staffAndTeacher);
+});
+
+// Update staff and teacher
+app.put("/api/staffandteachers/:id", upload.single("image"), async (req, res) => {
+  const { id } = req.params;
+  const { name, role } = req.body;
+  const image = req.file ? `/uploads/${req.file.filename}` : null;
+
+  const updatedStaffAndTeacher = await prisma.staffAndTeacher.update({
+    where: { id: parseInt(id) },
+    data: {
+      name,
+      role,
+      image: image || undefined,
+    },
+  });
+
+  res.json(updatedStaffAndTeacher);
+});
+
+// Delete staff or teacher
+app.delete("/api/staffandteachers/:id", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    await prisma.staffAndTeacher.delete({
+      where: { id: parseInt(id) },
+    });
+    res.status(204).send(); // Respond with no content
+  } catch (error) {
+    console.error("Error deleting staff or teacher:", error);
+    res.status(500).json({ error: "Failed to delete staff or teacher" });
+  }
+});
+
+// Create a new contact message
+app.post("/api/contacts", async (req, res) => {
+  const { name, email, phone, message } = req.body;
+
+  try {
+    const newContact = await prisma.contact.create({
+      data: {
+        name,
+        email,
+        phone,
+        message,
+      },
+    });
+    res.status(201).json(newContact);
+  } catch (error) {
+    console.error("Error creating contact:", error);
+    res.status(500).json({ error: "Failed to create contact message" });
+  }
+});
+
+// Get all contact messages
+app.get("/api/contacts", async (req, res) => {
+  try {
+    const contacts = await prisma.contact.findMany();
+    res.json(contacts);
+  } catch (error) {
+    console.error("Error fetching contacts:", error);
+    res.status(500).json({ error: "Failed to fetch contact messages" });
+  }
+});
+
+// Backend: Delete a contact message by ID
+app.delete("/api/contacts/:id", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // Delete the contact message by its ID
+    const deletedContact = await prisma.contact.delete({
+      where: { id: parseInt(id) }, // Assuming id is an integer
+    });
+    res.status(200).json(deletedContact);
+  } catch (error) {
+    console.error("Error deleting contact:", error);
+    res.status(404).json({ error: "Contact not found or failed to delete" });
+  }
+});
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
