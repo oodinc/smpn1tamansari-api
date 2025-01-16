@@ -439,17 +439,43 @@ app.get("/api/kalender", async (req, res) => {
 app.put("/api/kalender/:id", upload.single("file"), async (req, res) => {
   const { id } = req.params;
   const { title } = req.body;
-  const file = req.file ? `/uploads/${req.file.filename}` : null;
 
-  const updatedKalender = await prisma.kalender.update({
-    where: { id: parseInt(id) },
-    data: {
-      title,
-      file: file || undefined,
-    },
-  });
+  try {
+    // Get the existing kalender data
+    const existingKalender = await prisma.kalender.findUnique({
+      where: { id: parseInt(id) },
+    });
 
-  res.json(updatedKalender);
+    if (!existingKalender) {
+      return res.status(404).json({ error: "Kalender event not found" });
+    }
+
+    let newFile = existingKalender.file;
+
+    // If there's a new file, upload it and delete the old file from Supabase
+    if (req.file) {
+      newFile = await uploadToSupabase(req.file);
+
+      // Delete the old file from Supabase
+      if (existingKalender.file) {
+        await deleteFromSupabase(existingKalender.file);
+      }
+    }
+
+    // Update the kalender record
+    const updatedKalender = await prisma.kalender.update({
+      where: { id: parseInt(id) },
+      data: {
+        title,
+        file: newFile,  // Set the new file URL or keep the old one
+      },
+    });
+
+    res.json(updatedKalender);
+  } catch (error) {
+    console.error("Error updating kalender:", error);
+    res.status(500).json({ error: "Failed to update kalender", details: error.message });
+  }
 });
 
 // Get all alumni
