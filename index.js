@@ -722,7 +722,7 @@ app.put("/api/sarana/:id", upload.single("image"), async (req, res) => {
   const { name, description } = req.body;
 
   try {
-    // Fetch existing sarana
+    // Ambil data sarana lama
     const existingSarana = await prisma.sarana.findUnique({
       where: { id: parseInt(id) },
     });
@@ -731,7 +731,7 @@ app.put("/api/sarana/:id", upload.single("image"), async (req, res) => {
       return res.status(404).json({ error: "Sarana not found" });
     }
 
-    // Handle new image upload and delete old file
+    // Jika ada file baru, upload dan hapus file lama dari Supabase
     let newImage = null;
     if (req.file) {
       newImage = await uploadToSupabase(req.file);
@@ -741,7 +741,7 @@ app.put("/api/sarana/:id", upload.single("image"), async (req, res) => {
       }
     }
 
-    // Update sarana data
+    // Perbarui data sarana
     const updatedSarana = await prisma.sarana.update({
       where: { id: parseInt(id) },
       data: {
@@ -750,13 +750,10 @@ app.put("/api/sarana/:id", upload.single("image"), async (req, res) => {
         image: newImage || existingSarana.image,
       },
     });
-
     res.json(updatedSarana);
   } catch (error) {
     console.error("Error updating sarana:", error);
-    res
-      .status(500)
-      .json({ error: "Failed to update sarana", details: error.message });
+    res.status(500).json({ error: "Failed to update sarana", details: error.message });
   }
 });
 
@@ -765,7 +762,7 @@ app.delete("/api/sarana/:id", async (req, res) => {
   const { id } = req.params;
 
   try {
-    // Fetch existing sarana
+    // Ambil data sarana lama
     const existingSarana = await prisma.sarana.findUnique({
       where: { id: parseInt(id) },
     });
@@ -774,22 +771,19 @@ app.delete("/api/sarana/:id", async (req, res) => {
       return res.status(404).json({ error: "Sarana not found" });
     }
 
-    // Delete file from Supabase if exists
+    // Hapus file terkait dari Supabase jika ada
     if (existingSarana.image) {
       await deleteFromSupabase(existingSarana.image);
     }
 
-    // Delete sarana record from database
+    // Hapus data sarana dari database
     await prisma.sarana.delete({
       where: { id: parseInt(id) },
     });
-
     res.status(204).send();
   } catch (error) {
     console.error("Error deleting sarana:", error);
-    res
-      .status(500)
-      .json({ error: "Failed to delete sarana", details: error.message });
+    res.status(500).json({ error: "Failed to delete sarana", details: error.message });
   }
 });
 
