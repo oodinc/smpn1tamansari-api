@@ -2,7 +2,11 @@ import express from "express";
 import cors from "cors";
 import { PrismaClient } from "@prisma/client";
 import multer from "multer";
+import { createClient } from "@supabase/supabase-js";
 import path from "path";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const prisma = new PrismaClient();
 
@@ -10,20 +14,31 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Set up multer for file uploads
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, "uploads/"); // Directory to store uploaded images
-  },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + path.extname(file.originalname)); // Use unique filename
-  },
-});
+// Supabase configuration
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+const BUCKET_NAME = "uploads"; // Replace with your Supabase storage bucket name
 
-const upload = multer({ storage: storage });
+// Configure multer (no need for local disk storage)
+const upload = multer({ storage: multer.memoryStorage() });
 
-// Middleware to serve static files (images)
-app.use("/uploads", express.static("uploads"));
+// Upload file to Supabase
+const uploadToSupabase = async (file) => {
+  const uniqueFilename = `${Date.now()}-${file.originalname}`;
+  const { data, error } = await supabase.storage
+    .from(BUCKET_NAME)
+    .upload(uniqueFilename, file.buffer, {
+      contentType: file.mimetype,
+    });
+
+  if (error) {
+    console.error("Supabase upload error:", error);
+    throw new Error("Failed to upload file to Supabase");
+  }
+
+  // Get the public URL for the uploaded file
+  const { publicUrl } = supabase.storage.from(BUCKET_NAME).getPublicUrl(uniqueFilename);
+  return publicUrl;
+};
 
 // Endpoint untuk memastikan server berjalan
 app.get("/", (req, res) => {
@@ -48,36 +63,47 @@ app.get("/api/news/:id", async (req, res) => {
 // Add news with image upload
 app.post("/api/news", upload.single("image"), async (req, res) => {
   const { title, description, publishedAt } = req.body;
-  const image = req.file ? `/uploads/${req.file.filename}` : null;
 
-  const newNews = await prisma.news.create({
-    data: {
-      title,
-      description,
-      image,
-      publishedAt: new Date(publishedAt),
-    },
-  });
-  res.json(newNews);
+  try {
+    const image = req.file ? await uploadToSupabase(req.file) : null;
+
+    const newNews = await prisma.news.create({
+      data: {
+        title,
+        description,
+        image,
+        publishedAt: new Date(publishedAt),
+      },
+    });
+    res.json(newNews);
+  } catch (error) {
+    console.error("Error creating news:", error);
+    res.status(500).json({ error: "Failed to create news" });
+  }
 });
 
-// Update news with image upload
+// Endpoint to update news with image upload
 app.put("/api/news/:id", upload.single("image"), async (req, res) => {
   const { id } = req.params;
   const { title, description, publishedAt } = req.body;
-  const image = req.file ? `/uploads/${req.file.filename}` : null;
 
-  const updatedNews = await prisma.news.update({
-    where: { id: parseInt(id) },
-    data: {
-      title,
-      description,
-      image: image || undefined,
-      publishedAt: new Date(publishedAt),
-    },
-  });
+  try {
+    const image = req.file ? await uploadToSupabase(req.file) : null;
 
-  res.json(updatedNews);
+    const updatedNews = await prisma.news.update({
+      where: { id: parseInt(id) },
+      data: {
+        title,
+        description,
+        image: image || undefined,
+        publishedAt: new Date(publishedAt),
+      },
+    });
+    res.json(updatedNews);
+  } catch (error) {
+    console.error("Error updating news:", error);
+    res.status(500).json({ error: "Failed to update news" });
+  }
 });
 
 // Delete news by ID
