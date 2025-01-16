@@ -3,7 +3,6 @@ import cors from "cors";
 import { PrismaClient } from "@prisma/client";
 import multer from "multer";
 import { createClient } from "@supabase/supabase-js";
-import path from "path";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -15,7 +14,10 @@ app.use(cors());
 app.use(express.json());
 
 // Supabase configuration
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY
+);
 const BUCKET_NAME = "uploads"; // Replace with your Supabase storage bucket name
 
 // Configure multer (no need for local disk storage)
@@ -36,10 +38,22 @@ const uploadToSupabase = async (file) => {
   }
 
   // Dapatkan URL publik
-  return supabase.storage
-    .from(BUCKET_NAME)
-    .getPublicUrl(uniqueFilename)
-    .data.publicUrl;
+  return supabase.storage.from(BUCKET_NAME).getPublicUrl(uniqueFilename).data
+    .publicUrl;
+};
+
+// Hapus file dari Supabase
+const deleteFromSupabase = async (fileUrl) => {
+  const filePath = fileUrl.replace(
+    `${process.env.SUPABASE_URL}/storage/v1/object/public/${BUCKET_NAME}/`,
+    ""
+  );
+  const { error } = await supabase.storage.from(BUCKET_NAME).remove([filePath]);
+
+  if (error) {
+    console.error("Supabase delete error:", error);
+    throw new Error("Failed to delete file from Supabase");
+  }
 };
 
 // Endpoint untuk memastikan server berjalan
@@ -80,7 +94,9 @@ app.post("/api/news", upload.single("image"), async (req, res) => {
     res.json(newNews);
   } catch (error) {
     console.error("Error creating news:", error);
-    res.status(500).json({ error: "Failed to create news", details: error.message });
+    res
+      .status(500)
+      .json({ error: "Failed to create news", details: error.message });
   }
 });
 
@@ -90,31 +106,74 @@ app.put("/api/news/:id", upload.single("image"), async (req, res) => {
   const { title, description, publishedAt } = req.body;
 
   try {
-    const image = req.file ? await uploadToSupabase(req.file) : null;
+    // Ambil data berita lama
+    const existingNews = await prisma.news.findUnique({
+      where: { id: parseInt(id) },
+    });
 
+    if (!existingNews) {
+      return res.status(404).json({ error: "News not found" });
+    }
+
+    // Jika ada file baru, upload dan hapus file lama dari Supabase
+    let newImage = null;
+    if (req.file) {
+      newImage = await uploadToSupabase(req.file);
+
+      if (existingNews.image) {
+        await deleteFromSupabase(existingNews.image);
+      }
+    }
+
+    // Perbarui data berita
     const updatedNews = await prisma.news.update({
       where: { id: parseInt(id) },
       data: {
         title,
         description,
-        image: image || undefined,
+        image: newImage || existingNews.image,
         publishedAt: new Date(publishedAt),
       },
     });
     res.json(updatedNews);
   } catch (error) {
     console.error("Error updating news:", error);
-    res.status(500).json({ error: "Failed to update news" });
+    res
+      .status(500)
+      .json({ error: "Failed to update news", details: error.message });
   }
 });
 
 // Delete news by ID
 app.delete("/api/news/:id", async (req, res) => {
   const { id } = req.params;
-  await prisma.news.delete({
-    where: { id: parseInt(id) },
-  });
-  res.status(204).send();
+
+  try {
+    // Ambil data berita lama
+    const existingNews = await prisma.news.findUnique({
+      where: { id: parseInt(id) },
+    });
+
+    if (!existingNews) {
+      return res.status(404).json({ error: "News not found" });
+    }
+
+    // Hapus file terkait dari Supabase jika ada
+    if (existingNews.image) {
+      await deleteFromSupabase(existingNews.image);
+    }
+
+    // Hapus data berita dari database
+    await prisma.news.delete({
+      where: { id: parseInt(id) },
+    });
+    res.status(204).send();
+  } catch (error) {
+    console.error("Error deleting news:", error);
+    res
+      .status(500)
+      .json({ error: "Failed to delete news", details: error.message });
+  }
 });
 
 app.post("/api/announcements", async (req, res) => {
@@ -743,22 +802,26 @@ app.get("/api/staffandteachers/:id", async (req, res) => {
 });
 
 // Update staff and teacher
-app.put("/api/staffandteachers/:id", upload.single("image"), async (req, res) => {
-  const { id } = req.params;
-  const { name, role } = req.body;
-  const image = req.file ? `/uploads/${req.file.filename}` : null;
+app.put(
+  "/api/staffandteachers/:id",
+  upload.single("image"),
+  async (req, res) => {
+    const { id } = req.params;
+    const { name, role } = req.body;
+    const image = req.file ? `/uploads/${req.file.filename}` : null;
 
-  const updatedStaffAndTeacher = await prisma.staffAndTeacher.update({
-    where: { id: parseInt(id) },
-    data: {
-      name,
-      role,
-      image: image || undefined,
-    },
-  });
+    const updatedStaffAndTeacher = await prisma.staffAndTeacher.update({
+      where: { id: parseInt(id) },
+      data: {
+        name,
+        role,
+        image: image || undefined,
+      },
+    });
 
-  res.json(updatedStaffAndTeacher);
-});
+    res.json(updatedStaffAndTeacher);
+  }
+);
 
 // Delete staff or teacher
 app.delete("/api/staffandteachers/:id", async (req, res) => {
