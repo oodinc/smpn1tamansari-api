@@ -4,9 +4,12 @@ import { PrismaClient } from "@prisma/client";
 import multer from "multer";
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 
 dotenv.config();
 
+const SECRET_KEY = process.env.SECRET_KEY;
 const prisma = new PrismaClient();
 
 const app = express();
@@ -56,6 +59,58 @@ const deleteFromSupabase = async (fileUrl) => {
     throw new Error("Failed to delete file from Supabase");
   }
 };
+
+const authenticateToken = (req, res, next) => {
+  const token = req.headers.authorization?.split(" ")[1];
+
+  if (!token) {
+    return res.status(401).json({ error: "Access denied" });
+  }
+
+  try {
+    const decoded = jwt.verify(token, SECRET_KEY);
+
+    // Periksa waktu kedaluwarsa
+    if (decoded.exp * 1000 < Date.now()) {
+      return res.status(403).json({ error: "Token expired, please log in again" });
+    }
+
+    req.user = decoded;
+    next();
+  } catch (error) {
+    res.status(403).json({ error: "Invalid token" });
+  }
+};
+
+app.get("/api/admin/secure-data", authenticateToken, async (req, res) => {
+  res.json({ message: "This is secured data for admin" });
+});
+
+// Login admin
+app.post("/admin/login", async (req, res) => {
+  const { username, password } = req.body;
+
+  try {
+    const admin = await prisma.admin.findUnique({
+      where: { username },
+    });
+
+    if (!admin) {
+      return res.status(401).json({ error: "Invalid username or password" });
+    }
+
+    const isValidPassword = await bcrypt.compare(password, admin.password);
+
+    if (!isValidPassword) {
+      return res.status(401).json({ error: "Invalid username or password" });
+    }
+
+    const token = jwt.sign({ id: admin.id }, SECRET_KEY, { expiresIn: "1h" });
+    res.json({ token });
+  } catch (error) {
+    res.status(500).json({ error: "An error occurred during login" });
+  }
+});
 
 // Endpoint untuk memastikan server berjalan
 app.get("/", (req, res) => {
