@@ -47,12 +47,17 @@ const uploadToSupabase = async (file) => {
 
 // Hapus file dari Supabase
 const deleteFromSupabase = async (fileUrl) => {
+  // Encode file path untuk menghindari masalah dengan spasi atau karakter khusus
   const filePath = fileUrl.replace(
     `${process.env.SUPABASE_URL}/storage/v1/object/public/${BUCKET_NAME}/`,
     ""
   );
-  console.log("File Path to be deleted:", filePath);
-  const { error } = await supabase.storage.from(BUCKET_NAME).remove([filePath]);
+  
+  const encodedFilePath = encodeURIComponent(filePath); // Encode nama file yang memiliki spasi atau karakter khusus
+
+  console.log("File Path to be deleted:", encodedFilePath);
+  
+  const { error } = await supabase.storage.from(BUCKET_NAME).remove([encodedFilePath]);
 
   if (error) {
     console.error("Supabase delete error:", error);
