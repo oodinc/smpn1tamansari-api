@@ -1,8 +1,16 @@
 import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
 async function main() {
+  await prisma.admin.create({
+    data: {
+      username: "admin",
+      password: await bcrypt.hash("admin123", 10), 
+    },
+  });
+
   await prisma.hero.createMany({
     data: [
       {
@@ -35,8 +43,10 @@ async function main() {
     data: {
       text: "Sejarah peradaban Mesir Kuno dimulai lebih dari 5000 tahun yang lalu, dikenal dengan piramida dan Sphinx.",
       image: "https://example.com/mesir-kuno.jpg",
+      period: "2015 - 2017",
     },
   });
+  
 
   await prisma.visiMisi.create({
     data: {

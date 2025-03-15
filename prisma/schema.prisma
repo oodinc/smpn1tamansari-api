@@ -5,7 +5,6 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
 }
 
 model Admin {
@@ -65,6 +64,7 @@ model Galeri {
 model Sarana {
   id          Int      @id @default(autoincrement())
   name        String
+  description String
   image       String?
 }
 
@@ -78,6 +78,7 @@ model HeadmasterMessage {
 
 model Sejarah {
   id      Int     @id @default(autoincrement())
+  period  String
   text    String
   image   String?
 }
@@ -120,6 +121,13 @@ model StaffAndTeacher {
   name  String
   role  String
   image String
+}
+
+model KelasSR {
+  id         Int      @id @default(autoincrement())
+  nama       String
+  deskripsi  String?
+  createdAt  DateTime @default(now())
 }
 
 model Contact {

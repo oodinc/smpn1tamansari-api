@@ -8,14 +8,14 @@
     "postinstall": "prisma generate"
   },
   "prisma": {
-    "seed": "node --loader ts-node/esm prisma/seed.ts"
+    "seed": "ts-node prisma/seed.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@prisma/client": "^6.2.0",
+    "@prisma/client": "^6.4.1",
     "@supabase/supabase-js": "^2.47.14",
     "backend": "file:",
     "bcryptjs": "^2.4.3",
@@ -25,11 +25,11 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
     "pg": "^8.13.1",
-    "prisma": "^6.2.0"
+    "prisma": "^6.4.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.7",
     "ts-node": "^10.9.2",
-    "typescript": "^5.7.3"
+    "typescript": "^5.8.2"
   }
 }
