@@ -77,7 +77,6 @@ model HeadmasterMessage {
 
 model Sejarah {
   id      Int     @id @default(autoincrement())
-  period  String
   text    String
   image   String?
 }
