@@ -36,7 +36,7 @@ const storage = multer.diskStorage({
   }
 });
 
-const upload = multer({ storage: storage });
+const upload = multer({ storage: multer.memoryStorage() });
 
 // Serve static files from uploads directory
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -654,22 +654,27 @@ app.get("/api/galeri/:id", async (req, res) => {
 // Add galeri with local image upload
 app.post("/api/galeri", upload.single("image"), async (req, res) => {
   const { title } = req.body;
-
   try {
-    const image = req.file ? getLocalFileUrl(req.file.filename) : null;
-
-    const newGaleri = await prisma.galeri.create({
-      data: {
-        title,
-        image,
-      },
+    let publicUrl = null;
+    if (req.file) {
+      // upload buffer directly to Supabase
+      const filename = `${Date.now()}-${req.file.originalname}`;
+      const { error: uploadError } = await supabase
+        .storage.from("uploads")
+        .upload(filename, req.file.buffer, {
+          contentType: req.file.mimetype,
+        });
+      if (uploadError) throw uploadError;
+      publicUrl = supabase.storage.from("uploads").getPublicUrl(filename).data
+        .publicUrl;
+    }
+    const galeri = await prisma.galeri.create({
+      data: { title, image: publicUrl },
     });
-    res.json(newGaleri);
+    res.json(galeri);
   } catch (error) {
-    console.error("Error creating galeri:", error);
-    res
-      .status(500)
-      .json({ error: "Failed to create galeri", details: error.message });
+    console.error(error);
+    res.status(500).json({ error: error.message });
   }
 });
 
