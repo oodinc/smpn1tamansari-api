@@ -235,6 +235,93 @@ app.delete("/api/news/:id", async (req, res) => {
   }
 });
 
+app.post("/api/announcements", async (req, res) => {
+  const { title, description, publishedDate } = req.body;
+
+  // Validate date format
+  if (
+    !title ||
+    !description ||
+    !publishedDate ||
+    isNaN(new Date(publishedDate).getTime())
+  ) {
+    return res.status(400).json({ error: "Invalid or missing fields" });
+  }
+
+  try {
+    const newAnnouncement = await prisma.announcement.create({
+      data: {
+        title,
+        description,
+        publishedDate: new Date(publishedDate),
+      },
+    });
+    res.json(newAnnouncement);
+  } catch (error) {
+    console.error("Failed to create announcement:", error);
+    res.status(500).send("Error creating announcement");
+  }
+});
+
+// Update announcement by ID
+app.put("/api/announcements/:id", async (req, res) => {
+  const { id } = req.params;
+  const { title, description, publishedDate } = req.body;
+
+  if (!title || !description || !publishedDate) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+
+  let parsedDate = null;
+  if (publishedDate && !isNaN(new Date(publishedDate).getTime())) {
+    parsedDate = new Date(publishedDate);
+  }
+
+  try {
+    const updatedAnnouncement = await prisma.announcement.update({
+      where: { id: parseInt(id) },
+      data: {
+        title,
+        description,
+        publishedDate: parsedDate,
+      },
+    });
+    res.json(updatedAnnouncement);
+  } catch (error) {
+    console.error("Failed to update announcement:", error);
+    res.status(500).json({ error: "Error updating announcement" });
+  }
+});
+
+// Get all announcements
+app.get("/api/announcements", async (req, res) => {
+  const announcements = await prisma.announcement.findMany();
+  res.json(announcements);
+});
+
+// Get announcement by ID
+app.get("/api/announcements/:id", async (req, res) => {
+  const { id } = req.params;
+  const announcement = await prisma.announcement.findUnique({
+    where: { id: parseInt(id) },
+  });
+  res.json(announcement);
+});
+
+// Delete announcement by ID
+app.delete("/api/announcements/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    await prisma.announcement.delete({
+      where: { id: parseInt(id) },
+    });
+    res.status(204).send();
+  } catch (error) {
+    console.error("Failed to delete announcement:", error);
+    res.status(500).send("Error deleting announcement");
+  }
+});
+
 // Get Hero
 app.get("/api/hero", async (req, res) => {
   const hero = await prisma.hero.findFirst();
